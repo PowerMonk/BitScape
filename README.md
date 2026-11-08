@@ -37,6 +37,10 @@ Progress (unlocked devices, badges, language, name/suit) is saved in `localStora
 
 ## Project layout
 
+Full walkthrough in [`docs/`](docs/README.md) —
+[architecture](docs/architecture.md) · [gameplay design](docs/gameplay.md) ·
+[code guide](docs/code-guide.md) · [development](docs/development.md).
+
 ```
 src/
   pages/index.astro      single-page shell
