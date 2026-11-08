@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+
+# Astro build artifacts
+.astro/
+dist/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Editor / OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Test output
+coverage/
+
+# Local reference material (contains school/class data — keep out of the repo)
+class_reqs.md

@@ -1,0 +1,37 @@
+---
+import '../styles/global.css';
+---
+
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta
+      name="description"
+      content="BitScape: aventura educativa 2D para reparar sistemas embebidos desde adentro."
+    />
+    <meta name="theme-color" content="#0E1626" />
+    <title>BitScape</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect x='6' y='6' width='52' height='52' rx='14' fill='%233EC6C2' stroke='%2326344A' stroke-width='5'/%3E%3Crect x='24' y='4' width='6' height='8' rx='2' fill='%2326344A'/%3E%3Crect x='34' y='4' width='6' height='8' rx='2' fill='%2326344A'/%3E%3Crect x='24' y='52' width='6' height='8' rx='2' fill='%2326344A'/%3E%3Crect x='34' y='52' width='6' height='8' rx='2' fill='%2326344A'/%3E%3Ccircle cx='25' cy='32' r='5' fill='%2326344A'/%3E%3Ccircle cx='39' cy='32' r='5' fill='%2326344A'/%3E%3C/svg%3E"
+    />
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="game" aria-label="BitScape game canvas"></canvas>
+      <div id="ui">
+        <header id="hud" hidden></header>
+        <div id="screen-root"></div>
+        <div id="dialog-root"></div>
+        <div id="toast-root"></div>
+        <div id="touch-root" hidden></div>
+        <div id="modal-root"></div>
+      </div>
+    </div>
+    <script>
+      import '../game/main';
+    </script>
+  </body>
+</html>
