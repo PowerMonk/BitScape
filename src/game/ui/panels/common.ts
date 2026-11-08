@@ -69,13 +69,14 @@ export function slot(opts: {
   label: string;
   filled: boolean;
   active?: boolean;
+  suspect?: boolean;
   onClick: () => void;
   index?: number;
 }): HTMLElement {
   return el(
     'button',
     {
-      class: `slot slot-${opts.type}${opts.filled ? ' is-filled' : ''}${opts.active ? ' is-active' : ''}`,
+      class: `slot slot-${opts.type}${opts.filled ? ' is-filled' : ''}${opts.active ? ' is-active' : ''}${opts.suspect ? ' is-suspect' : ''}`,
       dataset: { type: opts.type, index: String(opts.index ?? -1) },
       onClick: opts.onClick,
     },
@@ -91,9 +92,15 @@ export function errorLine(): HTMLElement {
   return el('div', { class: 'line-error', role: 'alert' });
 }
 
-export function setError(node: HTMLElement, msg: string | null): void {
+export function setError(
+  node: HTMLElement,
+  msg: string | null,
+  kind: 'bad' | 'good' | 'info' = 'bad',
+): void {
   node.textContent = msg ?? '';
   node.classList.toggle('is-visible', !!msg);
+  node.classList.toggle('is-good', !!msg && kind === 'good');
+  node.classList.toggle('is-info', !!msg && kind === 'info');
 }
 
 export function footerBtn(

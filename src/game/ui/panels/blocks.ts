@@ -10,6 +10,7 @@ import type {
   SensorDef,
   ValueOpt,
 } from '../../types';
+import { runTest } from '../../puzzles/simulate';
 import {
   actionChip,
   errorLine,
@@ -53,7 +54,11 @@ export function openProgramPanel(opts: ProgramOpts): { close: () => void } {
   const feedback = errorLine();
   let ref: ModalHandle | null = null;
   let selected: Sel = null;
-  let saved = rt.programSaved;
+  /** Editing stays open until the tests are passed — a failed run must never
+   *  wipe the player's work. */
+  const locked = rt.allTestsPassed || rt.completed;
+  /** Parts involved in a failed test, marked red when the panel reopens. */
+  const suspects = new Set<string>();
 
   /* ---------------- state ---------------- */
   const rows: RuleRow[] =
@@ -82,6 +87,111 @@ export function openProgramPanel(opts: ProgramOpts): { close: () => void } {
     action: null,
   };
 
+  /* ---------------- hydration & suspects ---------------- */
+
+  /** Rebuild the whole form from the saved program (never start blank). */
+  function hydrate() {
+    const p = rt.program;
+    if (!p) return;
+    if (p.kind === 'rule' && builder.kind === 'rule') {
+      p.rules.forEach((r, i) => {
+        if (i >= rows.length || !r.cond) return;
+        rows[i] = {
+          sensor: r.cond.sensor,
+          op: r.cond.op,
+          value: r.cond.value,
+          action: r.action,
+        };
+      });
+      elseAction = p.defaultAction;
+    } else if (p.kind === 'sequence' && builder.kind === 'sequence') {
+      p.steps.forEach((s, i) => {
+        if (i < placed.length) placed[i] = s;
+      });
+      if (p.fill) {
+        fill.sensor = p.fill.cond.sensor;
+        fill.op = p.fill.cond.op;
+        fill.value = p.fill.cond.value;
+      }
+      if (p.safety) {
+        safety.sensor = p.safety.cond.sensor;
+        safety.op = p.safety.cond.op;
+        safety.value = p.safety.cond.value;
+        safety.action = p.safety.action;
+      }
+    }
+  }
+
+  function levelActions(): Map<string, ActionDef> {
+    const map = new Map<string, ActionDef>();
+    if (builder.kind === 'rule') {
+      for (const a of builder.slots.actions) map.set(a.id, a);
+    } else {
+      for (const a of builder.slots.steps) map.set(a.id, a);
+      for (const a of builder.slots.safety.actions) map.set(a.id, a);
+    }
+    map.set(KEEP_ACTION.id, KEEP_ACTION);
+    return map;
+  }
+
+  /**
+   * Work out which parts were involved in a failed test so the player can
+   * see exactly where to look instead of rebuilding from scratch:
+   *  - a rule fired and produced the wrong output → that rule;
+   *  - no rule matched → the branch that should have fired, else the default.
+   */
+  function computeSuspects() {
+    suspects.clear();
+    const p = rt.program;
+    if (!p) return;
+    const anyFailed = rt.level.tests.some((x) => rt.testsPassed[x.id] === false);
+    if (!anyFailed) return;
+    const actions = levelActions();
+
+    if (p.kind === 'rule') {
+      for (const test of rt.level.tests) {
+        if (rt.testsPassed[test.id] !== false) continue;
+        const out = runTest(p, test, actions);
+        const fired = out.eval_?.fired ?? -1;
+        if (fired >= 0) {
+          suspects.add(`row${fired}`);
+          continue;
+        }
+        const expected = test.expected ?? {};
+        const prior = test.prior ?? {};
+        const unchanged = Object.keys(expected).every((k) => String(prior[k]) === String(expected[k]));
+        if (unchanged) {
+          // nothing had to change: the default branch is the culprit
+          suspects.add('else');
+          continue;
+        }
+        const needed = [...actions.values()].find((a) => {
+          const merged: Record<string, unknown> = { ...prior };
+          Object.assign(merged, a.effect);
+          return Object.keys(expected).every((k) => String(merged[k]) === String(expected[k]));
+        });
+        const idx = needed ? p.rules.findIndex((r) => r.action === needed.id) : -1;
+        suspects.add(idx >= 0 ? `row${idx}` : 'else');
+      }
+      return;
+    }
+
+    for (const test of rt.level.tests) {
+      if (rt.testsPassed[test.id] !== false) continue;
+      if (test.kind === 'sequence' && test.canonical) {
+        const i = p.steps.findIndex((s, idx) => s !== test.canonical![idx]);
+        suspects.add(i >= 0 ? `order${i}` : 'order0');
+      } else if (test.kind === 'fill') {
+        suspects.add('fill');
+      } else if (test.kind === 'safety') {
+        suspects.add('safety');
+      }
+    }
+  }
+
+  hydrate();
+  computeSuspects();
+
   /* ---------------- helpers ---------------- */
 
   function sensorTypeOf(sensorId: string | null): 'number' | 'boolean' {
@@ -106,13 +216,13 @@ export function openProgramPanel(opts: ProgramOpts): { close: () => void } {
   }
 
   function select(kind: SelKind, id: string) {
-    if (saved) return;
+    if (locked) return;
     selected = selected && selected.kind === kind && selected.id === id ? null : { kind, id };
     render();
   }
 
   function place(kind: SelKind, apply: (id: string) => void, current: string | null, clear: () => void) {
-    if (saved) return;
+    if (locked) return;
     if (selected) {
       if (selected.kind === kind) {
         apply(selected.id);
@@ -173,7 +283,8 @@ export function openProgramPanel(opts: ProgramOpts): { close: () => void } {
     const actions = builder.kind === 'rule' ? builder.slots.actions : [];
     const sensor = builder.kind === 'rule' ? builder.slots.sensors.find((s) => s.id === row.sensor) : undefined;
 
-    return el('div', { class: 'rule-row' }, [
+    const suspect = suspects.has(`row${i}`);
+    return el('div', { class: `rule-row${suspect ? ' is-suspect' : ''}` }, [
       el('span', { class: 'kw kw-if', text: t('puzzle.program.if') }),
       slot({
         type: 'sensor',
@@ -227,15 +338,18 @@ export function openProgramPanel(opts: ProgramOpts): { close: () => void } {
         ? L(KEEP_ACTION.label)
         : L(actions.find((a) => a.id === elseAction)!.label);
 
-    return el('div', { class: 'rule-row rule-else' }, [
-      el('span', { class: 'kw kw-if', text: t('puzzle.program.other') }),
+    return el(
+      'div',
+      { class: `rule-row rule-else${suspects.has('else') ? ' is-suspect' : ''}` },
+      [
+        el('span', { class: 'kw kw-if', text: t('puzzle.program.other') }),
       slot({
         type: 'action',
         label,
         filled: !!known,
         active: selected?.kind === 'action',
         onClick: () => {
-          if (saved) return;
+          if (locked) return;
           if (selected && selected.kind === 'action') {
             elseAction = selected.id;
             selected = null;
@@ -335,6 +449,7 @@ export function openProgramPanel(opts: ProgramOpts): { close: () => void } {
           label: def ? L(def.label) : `#${i + 1}`,
           filled: !!def,
           active: selected?.kind === 'step',
+          suspect: suspects.has(`order${i}`),
           onClick: () => place('step', (sid) => { placed[i] = sid; }, id, () => { placed[i] = null; }),
         });
       }),
@@ -342,8 +457,11 @@ export function openProgramPanel(opts: ProgramOpts): { close: () => void } {
 
     const fillSensor = fillDef.sensors.find((s) => s.id === fill.sensor);
     const fillPoolValues = visibleValues(fill.sensor ? seqSensorType(fill.sensor) : 'number', fillDef.values);
-    const fillRow = el('div', { class: 'rule-row' }, [
-      el('span', { class: 'kw kw-if', text: t('puzzle.program.while') }),
+    const fillRow = el(
+      'div',
+      { class: `rule-row${suspects.has('fill') ? ' is-suspect' : ''}` },
+      [
+        el('span', { class: 'kw kw-if', text: t('puzzle.program.while') }),
       slot({
         type: 'sensor',
         label: fillSensor ? L(fillSensor.label) : t('puzzle.program.slotFill'),
@@ -375,8 +493,11 @@ export function openProgramPanel(opts: ProgramOpts): { close: () => void } {
     const sSensorDef = safetySlots?.sensors.find((s) => s.id === safety.sensor);
 
     const safetyRow = safety
-      ? el('div', { class: 'rule-row' }, [
-          el('span', { class: 'kw kw-if', text: t('puzzle.program.if') }),
+      ? el(
+          'div',
+          { class: `rule-row${suspects.has('safety') ? ' is-suspect' : ''}` },
+          [
+            el('span', { class: 'kw kw-if', text: t('puzzle.program.if') }),
           slot({
             type: 'sensor',
             label: sSensorDef ? L(sSensorDef.label) : t('puzzle.program.slotFill'),
@@ -462,37 +583,45 @@ export function openProgramPanel(opts: ProgramOpts): { close: () => void } {
   }
 
   function save() {
-    if (saved) return;
+    if (locked) return;
     const result = buildProgram();
     if (typeof result === 'string') {
       setError(feedback, result);
+      feedback.classList.remove('shake');
+      void feedback.offsetWidth;
       feedback.classList.add('shake');
       return;
     }
     rt.program = result;
     rt.programSaved = true;
-    saved = true;
-    setError(feedback, t('puzzle.program.saved'));
-    feedback.classList.remove('is-bad');
+    suspects.clear();
+    setError(feedback, t('puzzle.program.saved'), 'good');
     opts.onSaved();
     ref?.setFooter(footerRow());
     render();
   }
 
   function footerRow() {
-    return [
-      footerBtn(t('common.hint'), { onClick: () => opts.onHint?.(), disabled: !opts.onHint }),
-      saved
-        ? footerBtn(t('puzzle.test.run'), {
-            primary: true,
-            onClick: () => {
-              modal.close();
-              opts.onRunTests();
-            },
-          })
-        : footerBtn(t('puzzle.program.check'), { primary: true, onClick: save }),
-      footerBtn(t('common.close'), { onClick: () => modal.close() }),
-    ];
+    const hint = footerBtn(t('common.hint'), { onClick: () => opts.onHint?.(), disabled: !opts.onHint });
+    const close = footerBtn(t('common.close'), { onClick: () => modal.close() });
+    // Once the tests pass the program is final; until then the player can
+    // always come back, tweak and save again.
+    if (locked) return [hint, close];
+    if (rt.programSaved) {
+      return [
+        hint,
+        footerBtn(t('puzzle.program.saveChanges'), { onClick: save }),
+        footerBtn(t('puzzle.test.run'), {
+          primary: true,
+          onClick: () => {
+            modal.close();
+            opts.onRunTests();
+          },
+        }),
+        close,
+      ];
+    }
+    return [hint, footerBtn(t('puzzle.program.check'), { primary: true, onClick: save }), close];
   }
 
   /* ---------------- render ---------------- */
@@ -524,6 +653,9 @@ export function openProgramPanel(opts: ProgramOpts): { close: () => void } {
     build: (m) => {
       ref = m;
       render();
+      if (suspects.size > 0) {
+        setError(feedback, t('puzzle.program.suspectNote'), 'info');
+      }
       m.setFooter(footerRow());
     },
     onClose: () => {

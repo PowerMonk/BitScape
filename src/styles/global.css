@@ -681,6 +681,13 @@ button {
   color: var(--green-deep);
 }
 
+/* neutral progress note (e.g. "source ready, now pick the destination") */
+.line-error.is-info {
+  background: #eaf4fb;
+  border-color: var(--sky);
+  color: #1f6691;
+}
+
 .line-error.shake,
 .shake {
   animation: shake 0.36s ease;
@@ -974,6 +981,7 @@ button {
   background: #f7fafc;
   border: 3px solid var(--ink);
   border-radius: 14px;
+  position: relative;
 }
 
 .rule-else {
@@ -1021,6 +1029,7 @@ button {
   color: var(--ink-soft);
   line-height: 1.25;
   text-align: center;
+  position: relative;
 }
 
 .slot.is-filled {
@@ -1038,6 +1047,48 @@ button {
   border-color: var(--amber);
   background: #fff7e6;
   box-shadow: 0 0 0 3px rgba(255, 178, 63, 0.35);
+}
+
+/* ------------------------------------------------------------------ */
+/* Parts involved in a failed test — shown when the panel reopens      */
+/* ------------------------------------------------------------------ */
+
+.rule-row.is-suspect,
+.rule-else.is-suspect {
+  border-color: var(--red);
+  background: #fff0ef;
+  box-shadow: 0 0 0 3px rgba(242, 100, 90, 0.25);
+}
+
+.rule-row.is-suspect::after,
+.rule-else.is-suspect::after,
+.slot.is-suspect::after {
+  content: '!';
+  position: absolute;
+  top: -11px;
+  right: -11px;
+  width: 23px;
+  height: 23px;
+  border-radius: 50%;
+  background: var(--red);
+  color: #fff;
+  border: 2px solid var(--ink);
+  font-size: 13px;
+  font-weight: 900;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+
+.rule-row.is-suspect .slot,
+.slot.is-suspect {
+  border-color: var(--red);
+  background: #fff;
+  color: var(--red-deep);
+}
+
+.rule-row.is-suspect .slot.is-filled {
+  background: #ffe7e5;
 }
 
 .slot:hover {

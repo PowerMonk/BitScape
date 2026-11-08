@@ -86,15 +86,22 @@ export const DICT = {
   },
   'puzzle.wiring.title': { es: 'Reconecta las rutas', en: 'Reconnect the routes' },
   'puzzle.wiring.sub': {
-    es: 'Pulsa un origen y después un destino.',
-    en: 'Click a source, then a destination.',
+    es: '1. Pulsa un puerto de origen (sensor o salida del controlador). 2. Pulsa su destino. Los ya conectados quedan en verde.',
+    en: '1. Click a source port (sensor or controller output). 2. Click its destination. Connected ones turn green.',
   },
   'puzzle.wiring.done': { es: 'Rutas restauradas', en: 'Routes restored' },
   'puzzle.wiring.invalid': {
     es: 'Esa conexión no corresponde a este aparato.',
     en: 'That connection does not belong to this device.',
   },
-  'puzzle.wiring.needSource': { es: 'Elige primero un origen.', en: 'Pick a source first.' },
+  'puzzle.wiring.sourceReady': {
+    es: 'Origen listo: ahora elige el destino.',
+    en: 'Source ready: now pick the destination.',
+  },
+  'puzzle.wiring.destReady': {
+    es: 'Destino elegido: ahora elige el origen.',
+    en: 'Destination picked: now choose the source.',
+  },
   'puzzle.wiring.same': { es: 'Origen y destino iguales.', en: 'Source and destination are the same.' },
   'puzzle.wiring.ok': { es: 'Conexión correcta.', en: 'Correct connection.' },
 
@@ -111,6 +118,7 @@ export const DICT = {
   'puzzle.program.keep': { es: 'conservar el estado anterior', en: 'keep the previous state' },
   'puzzle.program.while': { es: 'MIENTRAS', en: 'WHILE' },
   'puzzle.program.check': { es: 'Guardar programa', en: 'Save program' },
+  'puzzle.program.saveChanges': { es: 'Guardar cambios', en: 'Save changes' },
   'puzzle.program.run': { es: 'Probar sistema', en: 'Run the system' },
   'puzzle.program.empty': { es: 'Completa todos los espacios.', en: 'Fill in every slot.' },
   'puzzle.program.needRule': {
@@ -126,6 +134,10 @@ export const DICT = {
   'puzzle.program.wrongBlock': {
     es: 'Ese bloque no va en este espacio.',
     en: 'That block does not fit this slot.',
+  },
+  'puzzle.program.suspectNote': {
+    es: 'En rojo: los elementos que intervinieron en una prueba fallida. Corrígelos y guarda de nuevo.',
+    en: 'In red: the parts involved in a failed test. Fix them and save again.',
   },
 
   'puzzle.order.title': { es: 'Ordena el ciclo', en: 'Order the cycle' },
