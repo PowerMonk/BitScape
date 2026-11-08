@@ -349,6 +349,74 @@ bar now explains itself on hover.
 
 ---
 
+## #9 — "SI / MIENTRAS" leaked Spanish into the English UI
+
+**Reported.**
+With the game in English, the MCU's block palette still showed the Spanish
+`SI / MIENTRAS` over the operator chips.
+
+**Root cause.**
+Two palette labels in `ui/panels/blocks.ts` were hardcoded string literals instead of
+dictionary keys:
+
+```ts
+el('div', { class: 'pal-label', text: 'SI' }),            // rule mode
+el('div', { class: 'pal-label', text: 'SI / MIENTRAS' }), // sequence mode
+```
+
+Every other label in the panels goes through `t()`, and the i18n tests only validate
+*the dictionary* — a string that never enters it is invisible to them. A UI audit
+confirmed these were the only two hardcoded Spanish strings left (canvas text uses
+`LANG === 'es' ? … : …` pairs; the rest is dictionary or `Bi` data).
+
+**Fix.**
+- `'SI'` → `t('puzzle.program.if')` (already existed: ES *SI* / EN *IF*)
+- `'SI / MIENTRAS'` → new key `puzzle.program.ifWhile` (ES *SI / MIENTRAS* / EN
+  *IF / WHILE*)
+
+**Regression guard:** `bitscape_smoke2.ps1` switches to English, opens the washer's
+program palette and asserts that **no** label contains `MIENTRAS` and that `IF / WHILE`
+is present.
+
+---
+
+## #10 — Re-running after a failed test replayed the whole batch (change request)
+
+**Request.**
+After one test failed, re-running replayed everything (6 tests for 1 check remaining).
+Wanted a button for *only the tests left* plus a button for *all of them*.
+
+**Change — the test panel footer is now state-aware:**
+
+| Situation | Buttons |
+| --- | --- |
+| panel opened, nothing run yet | **Ejecutar prueba** (runs everything) |
+| some green, some left (reopened after a fix) | **Ejecutar pendientes (n)** ← primary, **Ejecutar todas** |
+| this session produced failures | **Reintentar** (only editing the program can help) |
+| everything green | **Continuar** |
+
+So the normal fix loop is now: fail → *Reintentar* → fix in the MCU → *Probar* →
+**Ejecutar pendientes (1)** → done in ~2 s instead of replaying the batch.
+
+**Soundness net.**
+Skipping tests could otherwise grant a false green board (passes earned under an *older*
+program would count for the new one). Every pass therefore records **which program earned
+it**; when a pending run turns everything green but some passes came from an older
+program, those are re-checked instantly — no animation, ~140 ms each, with a
+*"Verificando pruebas anteriores…"* beat. Cheap (a fraction of a second) and impossible
+to cheat.
+
+**Also fixed while in there:** a reopened panel rendered previously-**failed** tests as
+grey *idle* (a truthy check — `false` fell through to the default). They now reopen
+**red with their explanation**, so the panel shows exactly what is left to fix.
+
+**Regression guards:** `bitscape_smoke5.ps1` — the reopened panel must show 1 green +
+1 red + 4 footer buttons with `(1)` on the primary; clicking it must leave the green
+card untouched (`t1` stays `pass`) while only the failed one runs (`t2` becomes
+`running`); after completion both are green and `allTestsPassed` is true.
+
+---
+
 ## Found and fixed during development (pre-release)
 
 Not reported by players, but worth recording:

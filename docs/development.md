@@ -36,10 +36,10 @@ DevTools Protocol** and play the real game (they use the `window.__bitscape` QA 
 | Script | Covers |
 | --- | --- |
 | `bitscape_smoke.ps1` | Boot → lab → full tutorial playthrough (entry, wiring, program, tests, path, results 100/100) → persistence → language toggle → lab → fridge boot. Also guards the lab itself: five cabinets, finite coordinates, smooth keyboard walk and a real OS-level click-to-move. |
-| `bitscape_smoke2.ps1` | Washer (sequence + fill + safety, 6 tests) and the final fan (wrong-input/output rejection, free assembly), badges, pause menu, hint tiers. |
+| `bitscape_smoke2.ps1` | Washer (sequence + fill + safety, 6 tests) and the final fan (wrong-input/output rejection, free assembly), badges, pause menu, hint tiers — plus the English palette labels (no Spanish leaks). |
 | `bitscape_smoke3.ps1` | **`file://` boot**, menus (encyclopedia / level select / how-to), the robot's two-round entry, language switch while a puzzle panel is open, HUD hint over a modal. |
 | `bitscape_smoke4.ps1` | Real room interaction: `E` on hotspots, inspection cards, keyboard movement, click-to-move; plus the fridge's two-rule hysteresis program. |
-| `bitscape_smoke5.ps1` | Regression suite for the player-review fixes: one `E` press at the active pad, neutral/green/red wiring feedback, the highlight moving to the next pad after saving, and program hydration + red suspect marks after a failed test. |
+| `bitscape_smoke5.ps1` | Regression suite for the player-review fixes: one `E` press at the active pad, neutral/green/red wiring feedback, the highlight moving to the next pad after saving, program hydration + red suspect marks after a failed test, and the run-pending / run-all test buttons. |
 
 Run them with the build being served:
 

@@ -269,7 +269,7 @@ export function openProgramPanel(opts: ProgramOpts): { close: () => void } {
       sectionTitle(t('puzzle.program.palette')),
       el('div', { class: 'pal-label', text: t('hud.stage.entry') }),
       sensorGroup,
-      el('div', { class: 'pal-label', text: 'SI' }),
+      el('div', { class: 'pal-label', text: t('puzzle.program.if') }),
       opGroup,
       el('div', { class: 'pal-label', text: t('puzzle.program.then') }),
       valGroup,
@@ -400,7 +400,7 @@ export function openProgramPanel(opts: ProgramOpts): { close: () => void } {
         { class: 'pal-group' },
         sensors.map((s) => sensorChip(s, selected?.kind === 'sensor' && selected.id === s.id, () => select('sensor', s.id))),
       ),
-      el('div', { class: 'pal-label', text: 'SI / MIENTRAS' }),
+      el('div', { class: 'pal-label', text: t('puzzle.program.ifWhile') }),
       el(
         'div',
         { class: 'pal-group' },

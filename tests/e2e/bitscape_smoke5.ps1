@@ -226,7 +226,15 @@ try {
   # and the corrected program now passes
   Eval "Array.from(document.querySelectorAll('.modal-foot .btn')).find(b=>b.classList.contains('btn-primary')).click()" | Out-Null
   Start-Sleep -Milliseconds 700
+  # reopened with 1 green + 1 red: the panel must offer run-pending AND run-all
+  Assert ((Eval "document.querySelectorAll('.test-card[data-state=pass]').length") -eq 1) 'previous pass still shown green after reopening'
+  Assert ((Eval "document.querySelectorAll('.test-card[data-state=fail]').length") -eq 1) 'previous failure still shown red after reopening'
+  Assert ((Eval "document.querySelectorAll('.modal-foot .btn').length") -eq 4) 'run-pending + run-all buttons offered'
+  Assert ((Eval "document.querySelector('.modal-foot .btn-primary').textContent.indexOf('(1)') >= 0") -eq $true) 'pending button counts the one test left'
   Eval "Array.from(document.querySelectorAll('.modal-foot .btn')).find(b=>b.classList.contains('btn-primary')).click()" | Out-Null
+  Start-Sleep -Milliseconds 450
+  Assert ((Eval "document.querySelector('.test-card[data-id=t1]').dataset.state") -eq 'pass') 'already-passed test is skipped (stays green)'
+  Assert ((Eval "document.querySelector('.test-card[data-id=t2]').dataset.state") -eq 'running') 'only the failed test runs'
   Start-Sleep -Milliseconds 7500
   Assert ((Eval "document.querySelectorAll('.test-card[data-state=pass]').length") -eq 2) 'corrected program passes both tests'
   Assert ((Eval "window.__bitscape.rt.allTestsPassed") -eq $true) 'level tests recorded as passed'
