@@ -286,6 +286,19 @@ try {
   Start-Sleep -Milliseconds 300
   Assert ((Eval 'window.__bitscape.hintTier') -eq 3) 'hints capped at three'
 
+  # Regression: the program palette once hardcoded the Spanish 'SI / MIENTRAS'.
+  Write-Output '== localised palette labels =='
+  Eval 'window.__bitscape.toggleLang()' | Out-Null   # ES -> EN
+  Start-Sleep -Milliseconds 500
+  Eval "window.__bitscape.enterLevel('washer')" | Out-Null
+  Start-Sleep -Milliseconds 700
+  Eval 'window.__bitscape.openPanel({kind:"program"})' | Out-Null
+  Start-Sleep -Milliseconds 600
+  Assert ((Eval "Array.from(document.querySelectorAll('.pal-label')).some(el => el.textContent.indexOf('MIENTRAS') >= 0)") -eq $false) 'no Spanish leaks into the English program palette'
+  Assert ((Eval "Array.from(document.querySelectorAll('.pal-label')).some(el => el.textContent.indexOf('IF / WHILE') >= 0)") -eq $true) 'English shows IF / WHILE'
+  Eval 'document.querySelector(".modal .icon-btn").click()' | Out-Null
+  Start-Sleep -Milliseconds 300
+
   if ($script:errors.Count -gt 0) {
     Write-Output '== console/page errors =='
     $script:errors | ForEach-Object { Write-Output "  ERR $_" }

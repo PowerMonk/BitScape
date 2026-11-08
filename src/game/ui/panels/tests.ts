@@ -136,18 +136,39 @@ export function openTestPanel(opts: TestOpts): { close: () => void } {
   }
 
   function cardFor(test: TestDef): HTMLElement {
-    const card = el('div', { class: 'test-card', dataset: { state: rt.testsPassed[test.id] ? 'pass' : 'idle', id: test.id } }, [
-      el('div', { class: 'test-head' }, [
-        el('span', { class: 'test-name', text: L(test.name) }),
-        el('span', { class: 'test-badge', text: rt.testsPassed[test.id] ? t('puzzle.test.pass') : '' }),
-      ]),
-      el('div', { class: 'test-steps' }, [
-        stepRow('1', t('puzzle.test.step1'), ''),
-        stepRow('2', t('puzzle.test.step2'), ''),
-        stepRow('3', t('puzzle.test.step3'), ''),
-      ]),
-      el('div', { class: 'test-fb' }),
-    ]);
+    // Restore the previous outcome when the panel reopens: green for a pass,
+    // red + explanation for a failure, grey for never run.
+    const passed = rt.testsPassed[test.id];
+    const state = passed === true ? 'pass' : passed === false ? 'fail' : 'idle';
+    const fb = el('div', { class: 'test-fb' });
+    if (state === 'fail' && test.feedback) {
+      fb.textContent = L(test.feedback);
+      fb.classList.add('is-visible');
+    }
+    const card = el(
+      'div',
+      { class: 'test-card', dataset: { state, id: test.id } },
+      [
+        el('div', { class: 'test-head' }, [
+          el('span', { class: 'test-name', text: L(test.name) }),
+          el('span', {
+            class: 'test-badge',
+            text:
+              state === 'pass'
+                ? t('puzzle.test.pass')
+                : state === 'fail'
+                  ? t('puzzle.test.fail')
+                  : '',
+          }),
+        ]),
+        el('div', { class: 'test-steps' }, [
+          stepRow('1', t('puzzle.test.step1'), ''),
+          stepRow('2', t('puzzle.test.step2'), ''),
+          stepRow('3', t('puzzle.test.step3'), ''),
+        ]),
+        fb,
+      ],
+    );
     cards.set(test.id, card);
     return card;
   }
@@ -168,12 +189,16 @@ export function openTestPanel(opts: TestOpts): { close: () => void } {
     row.classList.add('is-active', 'is-done');
   }
 
-  async function runAll() {
+  async function runAll(onlyPending = false) {
     if (running) return;
     running = true;
     const my = ++token;
+    const sig = JSON.stringify(rt.program ?? null);
+    const list = onlyPending
+      ? level.tests.filter((t) => rt.testsPassed[t.id] !== true)
+      : level.tests;
 
-    for (const test of level.tests) {
+    for (const test of list) {
       if (my !== token) return;
       const card = cards.get(test.id)!;
       card.dataset.state = 'running';
@@ -233,53 +258,119 @@ export function openTestPanel(opts: TestOpts): { close: () => void } {
     }
 
     if (my !== token) return;
+
+    // Stamp every pass produced here with the program it ran against.
+    for (const test of list) {
+      if (rt.testsPassed[test.id] === true) testSig[test.id] = sig;
+    }
+
+    // Soundness net: passes earned under an *older* program are re-checked
+    // without the animation (fast, one short beat each), so "run pending"
+    // can never grant a false green board after an edit.
+    const stale = level.tests.filter((t) => rt.testsPassed[t.id] === true && testSig[t.id] !== sig);
+    if (onlyPending && allPassed() && stale.length > 0) {
+      verdict.textContent = t('puzzle.test.recheck');
+      verdict.classList.add('is-visible');
+      verdict.classList.remove('is-good', 'is-bad');
+      for (const test of stale) {
+        if (my !== token) return;
+        const outcome = runTest(rt.program, test, map);
+        const card = cards.get(test.id)!;
+        rt.testsPassed[test.id] = outcome.pass;
+        card.dataset.state = outcome.pass ? 'pass' : 'fail';
+        card.querySelector('.test-badge')!.textContent = outcome.pass
+          ? t('puzzle.test.pass')
+          : t('puzzle.test.fail');
+        if (outcome.pass) {
+          testSig[test.id] = sig;
+          card.querySelector<HTMLElement>('.test-fb')!.classList.remove('is-visible');
+        } else {
+          const fb = card.querySelector<HTMLElement>('.test-fb')!;
+          fb.textContent = test.feedback ? L(test.feedback) : t('fb.testNoRule');
+          fb.classList.add('is-visible');
+        }
+        await sleep(140, opts.reducedMotion);
+      }
+      if (my !== token) return;
+    }
+
     running = false;
-    const all = level.tests.every((x) => rt.testsPassed[x.id]);
+    const all = allPassed();
     rt.allTestsPassed = all;
     verdictAll = all;
     verdict.textContent = all ? t('puzzle.test.allPass') : t('puzzle.test.fail');
     verdict.classList.add('is-visible', all ? 'is-good' : 'is-bad');
+    verdict.classList.remove(all ? 'is-bad' : 'is-good');
   }
+
+  /** Program signature per passing test (which program earned each green). */
+  const testSig: Record<string, string> = {};
+  const pendingCount = () => level.tests.filter((t) => rt.testsPassed[t.id] !== true).length;
+  const somePassed = () => level.tests.some((t) => rt.testsPassed[t.id] === true);
+  const allPassed = () => level.tests.every((t) => rt.testsPassed[t.id] === true);
 
   let started = false;
   let verdictAll = false;
   const verdict = el('div', { class: 'test-verdict' });
   let ref: { setFooter: (k: Node[]) => void } | null = null;
 
+  function startRun(pendingOnly: boolean) {
+    started = true;
+    verdict.classList.remove('is-visible', 'is-good', 'is-bad');
+    verdict.textContent = '';
+    const p = runAll(pendingOnly);
+    ref?.setFooter(footerRow());
+    void p.finally(() => ref?.setFooter(footerRow()));
+  }
+
   function footerRow(): Node[] {
-    return [
-      footerBtn(t('common.hint'), { onClick: () => opts.onHint?.(), disabled: !opts.onHint }),
-      running
-        ? footerBtn(t('puzzle.test.run'), { primary: true, disabled: true, onClick: () => {} })
-        : verdictAll
-          ? footerBtn(t('common.continue'), {
-              primary: true,
-              onClick: () => {
-                modal.close();
-                opts.onAllPassed();
-              },
-            })
-          : started
-            ? footerBtn(t('common.retry'), {
-                primary: true,
-                onClick: () => {
-                  modal.close();
-                  opts.onRetry();
-                },
-              })
-            : footerBtn(t('puzzle.test.run'), {
-                primary: true,
-                onClick: () => {
-                  started = true;
-                  verdict.classList.remove('is-visible', 'is-good', 'is-bad');
-                  verdict.textContent = '';
-                  const p = runAll();
-                  ref?.setFooter(footerRow());
-                  void p.finally(() => ref?.setFooter(footerRow()));
-                },
-              }),
-      footerBtn(t('common.close'), { onClick: () => modal.close() }),
-    ];
+    const hint = footerBtn(t('common.hint'), { onClick: () => opts.onHint?.(), disabled: !opts.onHint });
+    const close = footerBtn(t('common.close'), { onClick: () => modal.close() });
+
+    if (running) {
+      return [hint, footerBtn(t('puzzle.test.run'), { primary: true, disabled: true, onClick: () => {} }), close];
+    }
+    if (verdictAll) {
+      return [
+        hint,
+        footerBtn(t('common.continue'), {
+          primary: true,
+          onClick: () => {
+            modal.close();
+            opts.onAllPassed();
+          },
+        }),
+        close,
+      ];
+    }
+    if (started) {
+      // This session produced failures: only editing the program can help.
+      return [
+        hint,
+        footerBtn(t('common.retry'), {
+          primary: true,
+          onClick: () => {
+            modal.close();
+            opts.onRetry();
+          },
+        }),
+        close,
+      ];
+    }
+    const pending = pendingCount();
+    if (pending > 0 && somePassed()) {
+      // Reopened after a fix: run only what is left, or the full suite.
+      return [
+        hint,
+        footerBtn(t('puzzle.test.runPending', { n: pending }), {
+          primary: true,
+          onClick: () => startRun(true),
+        }),
+        footerBtn(t('puzzle.test.runAll'), { onClick: () => startRun(false) }),
+        close,
+      ];
+    }
+    return [hint, footerBtn(t('puzzle.test.run'), { primary: true, onClick: () => startRun(false) }), close];
   }
 
   const modal = openModal({
