@@ -417,6 +417,51 @@ card untouched (`t1` stays `pass`) while only the failed one runs (`t2` becomes
 
 ---
 
+## #11 — The name field rejected characters like "a" and "e"
+
+**Reported.**
+When choosing the character's name, some keys would not be accepted — "a" and "e" in
+particular.
+
+**Root cause.**
+`Input` (the game's window-level `keydown` listener) calls `preventDefault()` for every
+game key so the page never scrolls or hijacks the browser:
+
+```ts
+if (isGameKey(e.code)) e.preventDefault();   // KeyW KeyA KeyS KeyD KeyE KeyP Space Tab …
+```
+
+The class *had* a guard for text fields — `typing = false` — but **it was never set to
+`true` anywhere**: dead code. So while the name input had focus, typing `a` still hit
+`preventDefault()` and the character never reached the field. The affected keys were
+exactly the game keys: **W, A, S, D, E, P, Space and Tab** (other letters worked, which
+is why only "some characters" were missing). The same handler also meant a stray `E`
+could be queued as an interaction right after typing.
+
+**Fix.**
+Replaced the dead flag with a live check performed **at event time**:
+
+```ts
+private isTyping(): boolean {
+  const el = document.activeElement;
+  return !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
+}
+```
+
+Checked against `document.activeElement` on every keydown rather than synced through
+focus events, so it stays correct even when a screen re-renders and remounts the input
+(the title screen re-creates the field whenever the suit colour changes). While typing
+the game now hands the keyboard over completely: characters insert normally, `Tab`
+moves focus (keyboard accessibility), and no game key is queued as an action.
+Bonus: a focused checkbox (the reduced-motion toggle) can also be toggled with Space.
+
+**Regression guard:** `bitscape_smoke3.ps1` focuses the name field and injects **real**
+CDP key events (`Input.dispatchKeyEvent`, the same pipeline a physical keyboard uses)
+for `W A S D E P`, Space and `x`, then asserts the field reads `wasdep x` and that the
+save persisted it.
+
+---
+
 ## Found and fixed during development (pre-release)
 
 Not reported by players, but worth recording:

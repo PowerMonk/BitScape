@@ -21,8 +21,6 @@ export class Input {
   pointer: PointerSample = { x: 0, y: 0, down: false, justDown: false, justUp: false, dragged: false };
   /** click events queued since last endFrame (tap-to-move, hotspot clicks) */
   clicks: { x: number; y: number }[] = [];
-  /** true when the user is typing inside a DOM input */
-  typing = false;
 
   private map: Mapper = (x, y) => ({ x, y });
   private pressX = 0;
@@ -33,9 +31,25 @@ export class Input {
     this.map = fn;
   }
 
+  /**
+   * True while focus sits in a text field. Checked at event time (not kept
+   * in sync via focus events) so it stays correct even when a screen
+   * re-renders and remounts the input. While typing, the game must not
+   * touch the keyboard at all: preventDefault on KeyA/KeyE/KeyW/... used to
+   * swallow characters like "a" and "e" in the name field, and Space/Tab
+   * as well.
+   */
+  private isTyping(): boolean {
+    const el = document.activeElement;
+    return (
+      !!el &&
+      (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || (el as HTMLElement).isContentEditable === true)
+    );
+  }
+
   attach(target: HTMLElement) {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (this.typing) return;
+      if (this.isTyping()) return;
       if (isGameKey(e.code)) e.preventDefault();
       if (!this.held.has(e.code)) this.pressed.add(e.code);
       this.held.add(e.code);

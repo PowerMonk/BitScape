@@ -117,6 +117,30 @@ try {
   $null = Invoke-Cdp 'Page.reload' @{}
   Start-Sleep -Seconds 2
 
+  # Regression: the game's window keydown handler called preventDefault on
+  # KeyW/KeyA/KeyS/KeyD/KeyE/KeyP/Space even while typing, so the name field
+  # rejected those characters ("a", "e", …). Real CDP key events, exactly as
+  # a player's keyboard would deliver them.
+  Write-Output '== name input accepts every key =='
+  Eval "document.querySelector('.name-input').focus()" | Out-Null
+  Start-Sleep -Milliseconds 250
+  foreach ($k in @(
+      @{ key = 'w'; code = 'KeyW' }, @{ key = 'a'; code = 'KeyA' }, @{ key = 's'; code = 'KeyS' },
+      @{ key = 'd'; code = 'KeyD' }, @{ key = 'e'; code = 'KeyE' }, @{ key = 'p'; code = 'KeyP' }
+    )) {
+    $null = Invoke-Cdp 'Input.dispatchKeyEvent' @{ type = 'keyDown'; key = $k.key; code = $k.code; text = $k.key }
+    $null = Invoke-Cdp 'Input.dispatchKeyEvent' @{ type = 'keyUp'; key = $k.key; code = $k.code }
+  }
+  $null = Invoke-Cdp 'Input.dispatchKeyEvent' @{ type = 'keyDown'; key = ' '; code = 'Space'; text = ' ' }
+  $null = Invoke-Cdp 'Input.dispatchKeyEvent' @{ type = 'keyUp'; key = ' '; code = 'Space' }
+  $null = Invoke-Cdp 'Input.dispatchKeyEvent' @{ type = 'keyDown'; key = 'x'; code = 'KeyX'; text = 'x' }
+  $null = Invoke-Cdp 'Input.dispatchKeyEvent' @{ type = 'keyUp'; key = 'x'; code = 'KeyX' }
+  Start-Sleep -Milliseconds 400
+  Assert ((Eval "document.querySelector('.name-input').value") -eq 'wasdep x') 'name field accepts WASD/EP, Space and any other key'
+  Assert ((Eval "window.__bitscape.save.name") -eq 'wasdep x') 'typed name is kept and persisted'
+  Eval "document.querySelector('.name-input').blur()" | Out-Null
+  Start-Sleep -Milliseconds 150
+
   Write-Output '== menus =='
   Eval 'window.__bitscape.openPanel({kind:"encyclopedia"})' | Out-Null
   Start-Sleep -Milliseconds 500
