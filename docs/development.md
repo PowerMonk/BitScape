@@ -38,6 +38,7 @@ DevTools Protocol** and play the real game (they use the `window.__bitscape` QA 
 | `bitscape_smoke2.ps1` | Washer (sequence + fill + safety, 6 tests) and the final fan (wrong-input/output rejection, free assembly), badges, pause menu, hint tiers. |
 | `bitscape_smoke3.ps1` | **`file://` boot**, menus (encyclopedia / level select / how-to), the robot's two-round entry, language switch while a puzzle panel is open, HUD hint over a modal. |
 | `bitscape_smoke4.ps1` | Real room interaction: `E` on hotspots, inspection cards, keyboard movement, click-to-move; plus the fridge's two-rule hysteresis program. |
+| `bitscape_smoke5.ps1` | Regression suite for the player-review fixes: one `E` press at the active pad, neutral/green/red wiring feedback, the highlight moving to the next pad after saving, and program hydration + red suspect marks after a failed test. |
 
 Run them with the build being served:
 

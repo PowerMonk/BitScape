@@ -326,8 +326,10 @@ export class Game {
   }
 
   private say(lines: Bi[]) {
-    if (modalCount() > 0) this.toast.show(bi(lines[0]));
-    else this.dialog.say(lines);
+    // Always queue: the dialogue waits for any open modal to close instead of
+    // being swallowed, so the next objective is waiting the moment the player
+    // leaves a panel.
+    this.dialog.say(lines);
   }
 
   /* ---------------------------------------------------------------- */
@@ -583,24 +585,31 @@ export class Game {
     return best;
   }
 
+  /**
+   * The single pad the current stage wants the player to use next. It is the
+   * only one drawn with the amber "go here" highlight, so the guidance can
+   * never go stale after a stage change (e.g. after saving the program the
+   * highlight must move from the MCU to the exterior window).
+   */
+  private primaryHotspot(): Hotspot | null {
+    if (this.screen !== 'level') return null;
+    const rt = this.rt;
+    if (!rt || rt.completed) return null;
+    const role =
+      rt.stage === 'entry'
+        ? 'sensor'
+        : rt.stage === 'wiring' || rt.stage === 'program'
+          ? 'mcu'
+          : rt.stage === 'test' || rt.stage === 'path'
+            ? 'monitor'
+            : null;
+    if (!role) return null;
+    return this.room?.hotspots.find((h) => h.role === role) ?? null;
+  }
+
   private isActiveHotspot(hs: Hotspot): boolean {
     if (this.screen === 'lab') return true;
-    const rt = this.rt;
-    if (!rt) return false;
-    switch (rt.stage) {
-      case 'entry':
-        return hs.role === 'sensor';
-      case 'wiring':
-        return hs.role === 'mcu';
-      case 'program':
-        return hs.role === 'mcu' || (hs.role === 'monitor' && rt.programSaved);
-      case 'test':
-        return hs.role === 'monitor' || (hs.role === 'mcu' && rt.programSaved);
-      case 'path':
-        return hs.role === 'monitor' || hs.role === 'actuator';
-      default:
-        return false;
-    }
+    return this.primaryHotspot()?.id === hs.id;
   }
 
   private interact(hs: Hotspot) {
@@ -746,7 +755,11 @@ export class Game {
       const near = this.nearestHotspot(this.player.x, this.player.y, 6);
       this.activeHotspot = near;
       if (this.input.wasPressed('KeyE', 'Enter', 'Space')) {
-        if (this.dialog.isOpen()) this.dialog.advance();
+        // Standing on the pad the mission needs → E means "interact", even if
+        // BIT is still talking (the objective is repeated in the HUD and in
+        // the panel, so nothing is lost). Anywhere else E advances the line.
+        if (near && this.isActiveHotspot(near)) this.interact(near);
+        else if (this.dialog.isOpen()) this.dialog.advance();
         else if (near) this.interact(near);
       }
     } else {

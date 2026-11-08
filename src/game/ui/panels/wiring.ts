@@ -126,11 +126,20 @@ export function openWiringPanel(opts: WiringOpts): { close: () => void } {
     }
   }
 
-  function showFeedback(msg: string) {
-    setError(feedback, msg);
-    feedback.classList.remove('shake');
-    void feedback.offsetWidth;
-    feedback.classList.add('shake');
+  type FbKind = 'info' | 'good' | 'bad';
+
+  /**
+   * Feedback tone matters: picking the first port is a normal step (neutral
+   * info), a completed connection is success (green), and only a rejected
+   * edge is an error (red + shake).
+   */
+  function showFeedback(msg: string, kind: FbKind = 'bad', shake = false) {
+    setError(feedback, msg, kind);
+    if (shake) {
+      feedback.classList.remove('shake');
+      void feedback.offsetWidth;
+      feedback.classList.add('shake');
+    }
   }
 
   function footerRow() {
@@ -162,7 +171,7 @@ export function openWiringPanel(opts: WiringOpts): { close: () => void } {
 
   function connect(a: string, b: string) {
     if (a === b) {
-      showFeedback(t('puzzle.wiring.same'));
+      showFeedback(t('puzzle.wiring.same'), 'bad', true);
       return;
     }
     const ka = kindOf(a);
@@ -176,7 +185,7 @@ export function openWiringPanel(opts: WiringOpts): { close: () => void } {
       to = a;
     } else if (!forward) {
       const msg = def.reject[`${a}>${b}`] ?? def.reject[`${b}>${a}`];
-      showFeedback(msg ? L(msg) : t('puzzle.wiring.invalid'));
+      showFeedback(msg ? L(msg) : t('puzzle.wiring.invalid'), 'bad', true);
       return;
     }
 
@@ -195,12 +204,12 @@ export function openWiringPanel(opts: WiringOpts): { close: () => void } {
     const isRequired = def.required.some(([x, y]) => x === from && y === to);
     if (!isRequired) {
       const msg = def.reject[key];
-      showFeedback(msg ? L(msg) : t('puzzle.wiring.invalid'));
+      showFeedback(msg ? L(msg) : t('puzzle.wiring.invalid'), 'bad', true);
       return;
     }
 
     rt.edges.push([from, to]);
-    setError(feedback, t('puzzle.wiring.ok'));
+    showFeedback(t('puzzle.wiring.ok'), 'good');
     refreshCards();
     redraw();
 
@@ -216,7 +225,11 @@ export function openWiringPanel(opts: WiringOpts): { close: () => void } {
     if (solved) return;
     if (!selected) {
       selected = id;
-      setError(feedback, t('puzzle.wiring.needSource'));
+      // Picking the first half of a connection is normal progress, not an
+      // error — say what happens next instead of shouting in red.
+      const k = kindOf(id);
+      const isOrigin = k === 'source' || k === 'mcuOut';
+      showFeedback(isOrigin ? t('puzzle.wiring.sourceReady') : t('puzzle.wiring.destReady'), 'info');
       refreshCards();
       return;
     }

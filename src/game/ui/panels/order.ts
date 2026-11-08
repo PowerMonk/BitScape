@@ -89,9 +89,8 @@ export function openOrderPanel(opts: OrderOpts): { close: () => void } {
       setError(
         feedback,
         opts.mode === 'cycle' ? t('puzzle.order.correct') : t('puzzle.path.correct'),
+        'good',
       );
-      feedback.classList.remove('is-bad');
-      feedback.classList.add('is-good');
       render(m);
       m.setFooter([
         footerBtn(t('common.hint'), { onClick: () => opts.onHint?.(), disabled: !opts.onHint }),
