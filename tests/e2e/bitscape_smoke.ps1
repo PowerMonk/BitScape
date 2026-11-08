@@ -109,7 +109,7 @@ try {
   function RealClick([int]$x, [int]$y) {
     $null = Invoke-Cdp 'Input.dispatchMouseEvent' @{ type = 'mousePressed'; x = $x; y = $y; button = 'left'; clickCount = 1 }
     $null = Invoke-Cdp 'Input.dispatchMouseEvent' @{ type = 'mouseReleased'; x = $x; y = $y; button = 'left'; clickCount = 1 }
-    Start-Sleep -Milliseconds 700
+    Start-Sleep -Milliseconds 1000
   }
 
   $null = Invoke-Cdp 'Runtime.enable' @{}
@@ -137,12 +137,37 @@ try {
   Assert ((Eval "document.querySelector('.title-screen') === null") -eq $true) 'title screen unmounted after entering the lab'
   Assert ((Eval "document.getElementById('screen-root').childElementCount") -eq 0) 'screen root emptied'
   Assert ((Eval "document.elementFromPoint(Math.round(innerWidth/2), Math.round(innerHeight/2)) === document.getElementById('game')") -eq $true) 'canvas is the top element (clicks reach it)'
+
+  # Regression: the lab's 5th cabinet once got x: undefined, which poisoned
+  # the collision math and teleported the avatar to a wall on every keypress.
+  Assert ((Eval "window.__bitscape.room.props.filter(p=>p.kind==='cabinet').length") -eq 5) 'five device cabinets in the lab'
+  Assert ((Eval "window.__bitscape.room.props.every(p=>Number.isFinite(p.x))") -eq $true) 'all lab prop coordinates are finite'
+  Assert ((Eval "window.__bitscape.room.solids.every(s=>Number.isFinite(s.x))") -eq $true) 'all lab collision solids are finite'
+
+  # keyboard walk — the exact input from the bug report
+  Eval 'window.__bitscape.player.teleport(480,440)' | Out-Null
+  Start-Sleep -Milliseconds 250
+  Eval "window.dispatchEvent(new KeyboardEvent('keydown',{code:'ArrowRight'}))" | Out-Null
+  Start-Sleep -Milliseconds 600
+  Eval "window.dispatchEvent(new KeyboardEvent('keyup',{code:'ArrowRight'}))" | Out-Null
+  Start-Sleep -Milliseconds 250
+  $walkX = [double](Eval 'window.__bitscape.player.x')
+  Assert (($walkX -gt 520) -and ($walkX -lt 700)) "lab keyboard walk travels right smoothly (x $walkX, no wall snap)"
+
+  # click-to-move towards an empty floor point (350,400) in virtual coords,
+  # dispatched as a REAL OS-level click so hit-testing is part of the test
+  Eval 'window.__bitscape.player.teleport(480,440)' | Out-Null
+  Start-Sleep -Milliseconds 250
   $labX = Eval 'window.__bitscape.player.x'
   $labY = Eval 'window.__bitscape.player.y'
-  RealClick ([int](Eval 'Math.round(innerWidth/2)')) ([int](Eval 'Math.round(innerHeight/2)'))
-  $labX2 = Eval 'window.__bitscape.player.x'
-  $labY2 = Eval 'window.__bitscape.player.y'
-  Assert (([double]$labX2 -ne [double]$labX) -or ([double]$labY2 -ne [double]$labY)) "real click moves the avatar (x $labX -> $labX2, y $labY -> $labY2)"
+  $cx = [int](Eval "Math.round(document.getElementById('game').getBoundingClientRect().left + window.__bitscape.renderer.offsetX + 350 * window.__bitscape.renderer.scale)")
+  $cy = [int](Eval "Math.round(document.getElementById('game').getBoundingClientRect().top + window.__bitscape.renderer.offsetY + 400 * window.__bitscape.renderer.scale)")
+  RealClick $cx $cy
+  $labX2 = [double](Eval 'window.__bitscape.player.x')
+  $labY2 = [double](Eval 'window.__bitscape.player.y')
+  Assert ((Eval "document.querySelectorAll('.modal').length") -eq 0) 'real click on empty floor opens no panel'
+  Assert (($labX2 -lt ([double]$labX - 60)) -and ($labX2 -gt 300)) "real click-to-move walks left without snapping (x $labX -> $labX2)"
+  Assert (($labY2 -lt ([double]$labY - 20)) -and ($labY2 -gt 350)) "real click-to-move walks up to the point (y $labY -> $labY2)"
 
   Write-Output '== tutorial level =='
   Eval "window.__bitscape.enterLevel('tutorial')" | Out-Null

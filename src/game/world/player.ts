@@ -103,6 +103,20 @@ export class Player {
     this.x += dx;
     this.y += dy;
     for (const s of solids) {
+      // A malformed solid (missing/NaN coordinates) would poison the math
+      // below: every comparison with NaN is false, so the overlap test would
+      // fail open and the player would be "pushed" to NaN — then snapped to a
+      // wall by the bounds clamp. Never let that happen.
+      if (
+        !Number.isFinite(s.x) ||
+        !Number.isFinite(s.y) ||
+        !Number.isFinite(s.w) ||
+        !Number.isFinite(s.h) ||
+        s.w <= 0 ||
+        s.h <= 0
+      ) {
+        continue;
+      }
       const cx = Math.max(s.x, Math.min(this.x, s.x + s.w));
       const cy = Math.max(s.y, Math.min(this.y, s.y + s.h));
       const px = this.x - cx;

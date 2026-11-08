@@ -25,6 +25,7 @@ double-clicking the file (`file://`) as well as from any static host.
 | --- | --- |
 | `tests/simulate.test.ts` | The simulator accepts the *documented correct* program for every device and rejects plausible wrong ones (missing default branch, non-strict `< 20`, shuffled cycle, low fill target, missing/inverted door safety…). |
 | `tests/levels.test.ts` | Structural integrity of `levels.ts`: stage order, objectives and 3-tier hints per stage, entry puzzles have exactly one correct option with feedback for the others, wiring graphs reference real ports, test expectations are reachable from the level's actions, path orderings are permutations, bilingual copy is never empty. |
+| `tests/rooms.test.ts` | Room layout integrity: one cabinet per device, every prop/solid/hotspot coordinate finite, pads non-overlapping, spawn clear of solids — plus collision robustness (a `NaN` solid must never stop or teleport the player). |
 | `tests/i18n.test.ts` | Every dictionary key has non-empty ES/EN text and identical `{placeholder}` sets. |
 
 ### End-to-end (`tests/e2e/*.ps1`)
@@ -34,7 +35,7 @@ DevTools Protocol** and play the real game (they use the `window.__bitscape` QA 
 
 | Script | Covers |
 | --- | --- |
-| `bitscape_smoke.ps1` | Boot → lab → full tutorial playthrough (entry, wiring, program, tests, path, results 100/100) → persistence → language toggle → lab → fridge boot. |
+| `bitscape_smoke.ps1` | Boot → lab → full tutorial playthrough (entry, wiring, program, tests, path, results 100/100) → persistence → language toggle → lab → fridge boot. Also guards the lab itself: five cabinets, finite coordinates, smooth keyboard walk and a real OS-level click-to-move. |
 | `bitscape_smoke2.ps1` | Washer (sequence + fill + safety, 6 tests) and the final fan (wrong-input/output rejection, free assembly), badges, pause menu, hint tiers. |
 | `bitscape_smoke3.ps1` | **`file://` boot**, menus (encyclopedia / level select / how-to), the robot's two-round entry, language switch while a puzzle panel is open, HUD hint over a modal. |
 | `bitscape_smoke4.ps1` | Real room interaction: `E` on hotspots, inspection cards, keyboard movement, click-to-move; plus the fridge's two-rule hysteresis program. |

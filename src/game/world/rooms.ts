@@ -51,12 +51,22 @@ export function makeLevelRoom(
   };
 }
 
-/** Central lab: four device cabinets plus the encyclopedia terminal. */
+/**
+ * Central lab: one cabinet per device plus the encyclopedia terminal.
+ *
+ * The layout is derived from LEVEL_ORDER — never from a hand-written
+ * position list, so adding a device can no longer leave a cabinet (and its
+ * collision solid) with `x: undefined`.
+ */
 export function makeLabRoom(
   unlocked: LevelId[],
   results: Partial<Record<LevelId, { score: number }>>,
 ): RoomDef {
-  const xs = [55, 275, 495, 715];
+  const CABINET_W = 150;
+  const CABINET_H = 140;
+  const GAP = 27;
+  const X0 = 55;
+  const xs = LEVEL_ORDER.map((_, i) => X0 + i * (CABINET_W + GAP));
   const props: PropDef[] = [];
   const hotspots: Hotspot[] = [];
 
@@ -69,8 +79,8 @@ export function makeLabRoom(
       kind: 'cabinet',
       x,
       y: 120,
-      w: 175,
-      h: 140,
+      w: CABINET_W,
+      h: CABINET_H,
       color: PALETTES[level.palette].accent,
       accent: PALETTES[level.palette].propB,
       label: locked ? DICT['common.locked'] : level.device,
@@ -80,7 +90,7 @@ export function makeLabRoom(
     });
     hotspots.push({
       id: `device-${id}`,
-      x: x + 87,
+      x: x + CABINET_W / 2,
       y: 312,
       r: 52,
       label: locked ? DICT['common.locked'] : level.device,
@@ -113,7 +123,7 @@ export function makeLabRoom(
   });
 
   props.push({ kind: 'crate', x: 860, y: 380, w: 56, h: 50, color: '#E4D6BE' });
-  props.push({ kind: 'vent', x: 840, y: 96, w: 74, h: 26, color: '#D7E1EC' });
+  props.push({ kind: 'vent', x: 840, y: 90, w: 74, h: 26, color: '#D7E1EC' });
 
   return {
     id: 'lab',
