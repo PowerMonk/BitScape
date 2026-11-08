@@ -8,6 +8,7 @@ How the game and the codebase work, from the big picture down to individual modu
 | [gameplay.md](gameplay.md) | You want the design: the stage pipeline, the five devices, the puzzles, scoring, save data. |
 | [code-guide.md](code-guide.md) | You want a file-by-file tour: what each module owns and the key functions inside it. |
 | [development.md](development.md) | You want to run, test, build or extend the project (add a device, add a language…). |
+| [bugs.md](bugs.md) | You want a postmortem: what broke, why the tests missed it, and the guard that was added. |
 
 ## One-paragraph overview
 

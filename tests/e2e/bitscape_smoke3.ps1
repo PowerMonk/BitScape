@@ -12,6 +12,17 @@ if (-not $FileUrl) {
 }
 
 $ErrorActionPreference = 'Stop'
+# Never reuse a busy port: an orphaned browser from an earlier run would
+# answer our DevTools queries with a stale profile and stale save data.
+if (Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue) {
+  $busyPort = $Port
+  $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0)
+  $listener.Start()
+  $Port = ([System.Net.IPEndPoint]$listener.LocalEndpoint).Port
+  $listener.Stop()
+  Write-Output "port $busyPort was busy -> using $Port instead"
+}
+
 $edge = @(
   'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe',
   'C:\Program Files\Microsoft\Edge\Application\msedge.exe'
@@ -101,6 +112,10 @@ try {
   Write-Output '== back to http =='
   $null = Invoke-Cdp 'Page.navigate' @{ url = $HttpUrl }
   Start-Sleep -Seconds 2
+  # Deterministic state: wipe any save left behind by a reused profile.
+  $null = Eval 'localStorage.clear()'
+  $null = Invoke-Cdp 'Page.reload' @{}
+  Start-Sleep -Seconds 2
 
   Write-Output '== menus =='
   Eval 'window.__bitscape.openPanel({kind:"encyclopedia"})' | Out-Null
@@ -114,6 +129,13 @@ try {
   Eval 'window.__bitscape.openPanel({kind:"levelselect"})' | Out-Null
   Start-Sleep -Milliseconds 500
   Assert ((Eval "document.querySelectorAll('.level-card').length") -eq 5) 'level select lists five devices'
+  if ((Eval "document.querySelectorAll('.level-card.is-locked').length") -ne 4) {
+    Write-Output ('  DIAG unlocked = ' + (Eval 'JSON.stringify(window.__bitscape.save.unlocked)'))
+    Write-Output ('  DIAG results  = ' + (Eval 'JSON.stringify(window.__bitscape.save.results)'))
+    Write-Output ('  DIAG locked   = ' + (Eval "document.querySelectorAll('.level-card.is-locked').length"))
+    Write-Output ('  DIAG classes  = ' + (Eval "Array.from(document.querySelectorAll('.level-card')).map(c=>c.className).join(' | ')"))
+    Write-Output ('  DIAG origin   = ' + (Eval 'location.origin + location.pathname'))
+  }
   Assert ((Eval "document.querySelectorAll('.level-card.is-locked').length") -eq 4) 'only tutorial unlocked'
   Eval 'document.querySelector(".modal .icon-btn").click()' | Out-Null
   Start-Sleep -Milliseconds 400
@@ -179,7 +201,11 @@ try {
 }
 finally {
   if ($ws) { try { $ws.Dispose() } catch {} }
-  if ($proc -and -not $proc.HasExited) { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue }
+  # Kill every browser process of THIS run's profile (the launcher PID alone
+# is not enough: Edge spawns children that outlive it and keep the port).
+Get-CimInstance Win32_Process -Filter "Name='msedge.exe'" |
+  Where-Object { $_.CommandLine -like "*$profile*" } |
+  ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
   Start-Sleep -Milliseconds 300
   Remove-Item $profile -Recurse -Force -ErrorAction SilentlyContinue
 }
