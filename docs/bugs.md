@@ -266,6 +266,89 @@ both tests.
 
 ---
 
+## #7 — Choppy, "jumping" movement in the lab
+
+**Reported symptom.**
+In the lab (the screen with all the devices) the avatar felt laggy and "jumps from
+position to position" instead of travelling smoothly like it does inside the devices.
+
+**Root cause — not performance.**
+Frame profiling first: **60.3 fps with a 16.8 ms worst frame in both the lab and a device
+room** — identical. The problem was data. `makeLabRoom` laid the device cabinets out from
+a hand-written list:
+
+```ts
+const xs = [55, 275, 495, 715];   // four positions …
+LEVEL_ORDER.forEach((id, i) => { const x = xs[i]; … });  // … for five devices
+```
+
+The fan (added with the final challenge) got `x: undefined`, and from there everything
+unravelled three layers away:
+
+1. its collision solid became `{ x: undefined, y: 120, w: 175, h: 140 }`;
+2. in `moveAxis`, `s.x + s.w` → **NaN**, and every NaN comparison is `false`, so the
+   overlap test `px² + py² >= r²` **failed open** — the player counted as overlapping a
+   phantom wall on every frame;
+3. on the first frame with any movement key the phantom pushed the player to `NaN`, the
+   *next* real solid (the encyclopedia terminal) then pushed it to `x = 42`, and the
+   bounds clamp snapped it to `43` — the left wall.
+
+So every keypress teleported the avatar to a wall and pinned it there (alternating keys
+bounced it between walls) — exactly the "jumps from position to position" report. A
+single instrumented `player.update()` call showed `x: 480 → 43` with correct bounds,
+keys and radius, which is what cracked it.
+
+**Bonus finding:** with `x: undefined` the *canvas* draw also got NaN coordinates, so the
+fan's cabinet was **invisible** and its interaction pad unreachable — the fifth station
+simply did not exist visually.
+
+**Fix.**
+
+1. `makeLabRoom` now derives every position from `LEVEL_ORDER`
+   (`xs = LEVEL_ORDER.map((_, i) => X0 + i * (CABINET_W + GAP))`) with named constants —
+   adding a device can no longer leave a slot undefined. All five cabinets render and all
+   pads are reachable (verified in the screenshot: five stations, even spacing).
+2. **Defense in depth:** `Player.moveAxis` now skips any solid with non-finite or
+   non-positive coordinates, so a malformed prop can never freeze, teleport or NaN the
+   avatar again.
+
+**Regression guards.**
+
+- `tests/rooms.test.ts` (11 tests): one cabinet per device, *every* prop/solid/hotspot
+  coordinate finite, pads non-overlapping, spawn clear of solids, device rooms finite —
+  plus a direct collision test that walks the player through a `NaN` solid list and
+  requires it to keep travelling right.
+- `bitscape_smoke.ps1`: five cabinets + finite coordinates in the live game, a keyboard
+  walk must travel right (480 → ~597, no wall snap), and a **real OS-level click** must
+  walk the avatar to the target without snapping.
+
+**Lesson.**
+A missing array slot is a *data* bug that surfaces as a *feel* bug three layers away
+(collision math → clamp → "the movement is choppy"). Ruling performance out first with a
+frame-time measurement kept the investigation honest; asserting coordinate finiteness at
+both the data and collision level catches this class of bug instantly.
+
+---
+
+## #8 — Top bar buttons had no descriptions (change request)
+
+**Request.**
+Hovering the buttons in the top bar gave no hint about what they do.
+
+**Change.**
+Bilingual `title` tooltips on all three HUD buttons, driven by new dictionary keys:
+
+| Button | Tooltip (ES / EN) |
+| --- | --- |
+| Hint | "Pista opcional para la etapa actual (3 niveles de ayuda)" / "Optional hint for the current stage (3 tiers of help)" |
+| Language | "Cambiar entre español e inglés" / "Switch between Spanish and English" |
+| Pause | "Pausar el juego (también con la tecla Esc)" / "Pause the game (also with the Esc key)" |
+
+The stage chips already carried `title` attributes (device/stage names), so the whole top
+bar now explains itself on hover.
+
+---
+
 ## Found and fixed during development (pre-release)
 
 Not reported by players, but worth recording:

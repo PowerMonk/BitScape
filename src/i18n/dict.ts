@@ -221,6 +221,18 @@ export const DICT = {
   'hint.concept': { es: 'Pista: {text}', en: 'Hint: {text}' },
   'hint.next': { es: 'Siguiente pista', en: 'Next hint' },
   'hint.none': { es: 'No quedan pistas.', en: 'No hints left.' },
+  'hint.tip': {
+    es: 'Pista opcional para la etapa actual (3 niveles de ayuda)',
+    en: 'Optional hint for the current stage (3 tiers of help)',
+  },
+  'lang.tip': {
+    es: 'Cambiar entre español e inglés',
+    en: 'Switch between Spanish and English',
+  },
+  'pause.tip': {
+    es: 'Pausar el juego (también con la tecla Esc)',
+    en: 'Pause the game (also with the Esc key)',
+  },
 
   'results.title': { es: 'DISPOSITIVO REPARADO', en: 'DEVICE REPAIRED' },
   'results.entry': { es: 'Entrada identificada', en: 'Input identified' },
