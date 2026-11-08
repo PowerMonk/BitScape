@@ -6,6 +6,17 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+# Never reuse a busy port: an orphaned browser from an earlier run would
+# answer our DevTools queries with a stale profile and stale save data.
+if (Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue) {
+  $busyPort = $Port
+  $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0)
+  $listener.Start()
+  $Port = ([System.Net.IPEndPoint]$listener.LocalEndpoint).Port
+  $listener.Stop()
+  Write-Output "port $busyPort was busy -> using $Port instead"
+}
+
 $edge = @(
   'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe',
   'C:\Program Files\Microsoft\Edge\Application\msedge.exe'
@@ -93,9 +104,21 @@ try {
     Write-Output "  ok  $msg"
   }
 
+  # Real OS-level click: goes through the browser's hit-testing, so it is
+  # blocked by whatever element is actually on top (unlike el.click()).
+  function RealClick([int]$x, [int]$y) {
+    $null = Invoke-Cdp 'Input.dispatchMouseEvent' @{ type = 'mousePressed'; x = $x; y = $y; button = 'left'; clickCount = 1 }
+    $null = Invoke-Cdp 'Input.dispatchMouseEvent' @{ type = 'mouseReleased'; x = $x; y = $y; button = 'left'; clickCount = 1 }
+    Start-Sleep -Milliseconds 700
+  }
+
   $null = Invoke-Cdp 'Runtime.enable' @{}
   $null = Invoke-Cdp 'Page.enable' @{}
   $null = Invoke-Cdp 'Page.navigate' @{ url = $Url }
+  Start-Sleep -Seconds 2
+  # Deterministic state: wipe any save left behind by a reused profile.
+  $null = Eval 'localStorage.clear()'
+  $null = Invoke-Cdp 'Page.reload' @{}
   Start-Sleep -Seconds 2
 
   Write-Output '== boot =='
@@ -109,10 +132,23 @@ try {
   Assert ((Eval "document.getElementById('hud').hidden") -eq $false) 'HUD visible in lab'
   Assert ((Eval "document.querySelectorAll('.chip').length") -eq 5) 'lab shows 5 device chips'
 
+  # Regression: the title screen used to stay mounted over the game.
+  Write-Output '== title overlay =='
+  Assert ((Eval "document.querySelector('.title-screen') === null") -eq $true) 'title screen unmounted after entering the lab'
+  Assert ((Eval "document.getElementById('screen-root').childElementCount") -eq 0) 'screen root emptied'
+  Assert ((Eval "document.elementFromPoint(Math.round(innerWidth/2), Math.round(innerHeight/2)) === document.getElementById('game')") -eq $true) 'canvas is the top element (clicks reach it)'
+  $labX = Eval 'window.__bitscape.player.x'
+  $labY = Eval 'window.__bitscape.player.y'
+  RealClick ([int](Eval 'Math.round(innerWidth/2)')) ([int](Eval 'Math.round(innerHeight/2)'))
+  $labX2 = Eval 'window.__bitscape.player.x'
+  $labY2 = Eval 'window.__bitscape.player.y'
+  Assert (([double]$labX2 -ne [double]$labX) -or ([double]$labY2 -ne [double]$labY)) "real click moves the avatar (x $labX -> $labX2, y $labY -> $labY2)"
+
   Write-Output '== tutorial level =='
   Eval "window.__bitscape.enterLevel('tutorial')" | Out-Null
   Start-Sleep -Milliseconds 700
   Assert ((Eval "window.__bitscape.rt.stage") -eq 'entry') 'starts at entry stage'
+  Assert ((Eval "document.querySelector('.title-screen') === null") -eq $true) 'title screen stays unmounted inside a level'
   Assert ((Eval "document.querySelectorAll('.chip').length") -eq 5) 'stage chips rendered'
   Assert ((Eval "document.querySelector('#dialog-root .dialog') !== null && !document.querySelector('#dialog-root .dialog').hidden") -eq $true) 'BIT dialogue visible'
 
@@ -253,7 +289,11 @@ try {
 }
 finally {
   if ($ws) { try { $ws.Dispose() } catch {} }
-  if ($proc -and -not $proc.HasExited) { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue }
+  # Kill every browser process of THIS run's profile (the launcher PID alone
+# is not enough: Edge spawns children that outlive it and keep the port).
+Get-CimInstance Win32_Process -Filter "Name='msedge.exe'" |
+  Where-Object { $_.CommandLine -like "*$profile*" } |
+  ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
   Start-Sleep -Milliseconds 300
   Remove-Item $profile -Recurse -Force -ErrorAction SilentlyContinue
 }

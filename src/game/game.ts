@@ -176,8 +176,19 @@ export class Game {
     });
   }
 
+  /**
+   * Unmount whatever full-screen view is living in #screen-root.
+   * The title screen is the only thing that ever renders there, and it must
+   * be removed the moment we leave it — otherwise it stays stacked over the
+   * canvas, hiding the world and swallowing every pointer click.
+   */
+  private clearScreens() {
+    mount(this.screenRoot, []);
+  }
+
   private enterLab() {
     this.closeAllModals();
+    this.clearScreens();
     this.screen = 'lab';
     this.rt = null;
     this.rebuildLabRoom();
@@ -209,6 +220,7 @@ export class Game {
       return;
     }
     this.closeAllModals();
+    this.clearScreens();
     const level = LEVELS[id];
     this.screen = 'level';
     this.rt = createRuntime(level);
